@@ -1,2 +1,19 @@
-./backend/composer.lock
-./backend/vendor/
+# Backend PHP
+/backend/vendor/
+/backend/composer.lock
+/backend/.env
+/backend/node_modules/
+
+# Frontend (если будут npm пакеты)
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.env
+
+# IDE и OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Логи
+*.log
