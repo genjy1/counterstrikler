@@ -1,0 +1,25 @@
+FROM php:8.2-cli
+
+WORKDIR /app
+
+# Установка composer и необходимых расширений
+RUN apt-get update && apt-get install -y \
+        unzip \
+        git \
+        libzip-dev \
+        && docker-php-ext-install zip
+
+# Установка composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Копируем код
+COPY ./backend /app
+
+# Установка зависимостей PHP
+RUN composer install
+
+# Открываем порт для Ratchet (WebSocket)
+EXPOSE 8080
+
+# Команда запуска WebSocket сервера
+CMD ["php", "server.php"]

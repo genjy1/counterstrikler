@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Мультиплеер "Угадай игрока"</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-900 p-6">
+
+<div class="max-w-2xl mx-auto bg-white shadow rounded p-6">
+    <h1 class="text-2xl font-bold mb-4">Мультиплеер "Угадай игрока"</h1>
+
+    <!-- Форма входа -->
+    <div id="joinForm" class="mb-4">
+        <input type="text" id="nicknameInput" placeholder="Ваш ник" class="border p-2 rounded w-full mb-2">
+        <input type="text" id="roomInput" placeholder="ID комнаты" class="border p-2 rounded w-full mb-2">
+        <button id="joinBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full">Войти в комнату</button>
+    </div>
+
+    <!-- Игровая зона -->
+    <div id="game" class="hidden">
+        <div class="mb-4">
+            <input type="text" id="guessInput" placeholder="Введите ник игрока" class="border p-2 rounded w-full mb-2">
+            <button id="guessBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full">Угадать</button>
+        </div>
+
+        <div id="messages" class="mb-4 space-y-2"></div>
+
+        <h2 class="text-xl font-bold mb-2">Таблица игроков</h2>
+        <table class="table-auto w-full border-collapse border border-gray-300">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border border-gray-300 px-2 py-1">Игрок</th>
+                    <th class="border border-gray-300 px-2 py-1">Попытки</th>
+                    <th class="border border-gray-300 px-2 py-1">Очки</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboard"></tbody>
+        </table>
+
+        <div id="playerPhoto" class="mt-4"></div>
+    </div>
+</div>
+
+<script>
+let ws;
+let room;
+let nickname;
+
+// Соединение с сервером
+function connect() {
+    ws = new WebSocket('ws://localhost:8080');
+
+    ws.onopen = () => {
+        console.log('WebSocket открыт');
+
+        // Если есть данные в localStorage, автоматически присоединяемся
+        const savedNick = localStorage.getItem('nickname');
+        const savedRoom = localStorage.getItem('room');
+        if (savedNick && savedRoom) {
+            nickname = savedNick;
+            room = savedRoom;
+            ws.send(JSON.stringify({type:'join', room, nickname}));
+        }
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log(data);
+
+        if (data.type === 'connected') {
+            addMessage(data.message);
+        } else if (data.type === 'joined') {
+            showGame();
+            updateLeaderboard(data.leaderboard);
+        } else if (data.type === 'update') {
+            updateLeaderboard(data.leaderboard);
+            if (data.correct && data.player === nickname) {
+                addMessage(`🎉 Вы угадали! Это был ${data.answer}`);
+                if (data.photo) showPhoto(data.photo);
+            }
+        }
+    };
+
+    ws.onclose = () => console.log('WebSocket закрыт');
+}
+
+// Присоединение к комнате
+document.getElementById('joinBtn').onclick = () => {
+    nickname = document.getElementById('nicknameInput').value.trim();
+    room = document.getElementById('roomInput').value.trim();
+    if (!nickname || !room) return alert('Введите ник и ID комнаты!');
+
+    // Сохраняем данные в localStorage
+    localStorage.setItem('nickname', nickname);
+    localStorage.setItem('room', room);
+
+    ws.send(JSON.stringify({type:'join', room, nickname}));
+};
+
+// Отправка угадывания
+document.getElementById('guessBtn').onclick = () => {
+    const guess = document.getElementById('guessInput').value.trim();
+    if (!guess) return;
+    guessPlayer(guess);
+};
+
+function guessPlayer(guess) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert('Соединение не установлено!');
+        return;
+    }
+    ws.send(JSON.stringify({type:'guess', room, nickname, guess}));
+}
+
+// Отображение фото игрока
+function showPhoto(url) {
+    const container = document.getElementById('playerPhoto');
+    container.innerHTML = `<img src="${url}" alt="Фото игрока" class="max-w-xs rounded shadow">`;
+}
+
+// Отображение сообщений
+function addMessage(msg) {
+    const container = document.getElementById('messages');
+    const p = document.createElement('p');
+    p.textContent = msg;
+    p.className = 'bg-gray-100 p-2 rounded shadow';
+    container.appendChild(p);
+}
+
+// Показ игровой зоны
+function showGame() {
+    document.getElementById('joinForm').classList.add('hidden');
+    document.getElementById('game').classList.remove('hidden');
+}
+
+// Обновление лидерборда
+function updateLeaderboard(players) {
+    const tbody = document.getElementById('leaderboard');
+    tbody.innerHTML = '';
+    for (const [nick, stats] of Object.entries(players)) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="border border-gray-300 px-2 py-1">${nick}</td>
+            <td class="border border-gray-300 px-2 py-1">${stats.tries}</td>
+            <td class="border border-gray-300 px-2 py-1">${stats.score}</td>
+        `;
+        tbody.appendChild(tr);
+    }
+}
+
+// Автоподключение при загрузке страницы
+window.onload = () => connect();
+</script>
+
+</body>
+</html>
